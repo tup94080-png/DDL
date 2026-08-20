@@ -1,0 +1,1 @@
+export const API_KEY="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"
