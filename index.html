@@ -218,7 +218,6 @@
         <button onclick="processInput()">Send</button>
     </div>
 </div>
-
 <script>
     // Persona & Memory System Context
     const chatHistory = [
@@ -293,7 +292,10 @@ Always speak with a loving, warm, loyal, and engaging tone.`
         chatHistory.push({ role: "user", content: userPrompt });
         
         const loadingMsg = appendMessage("Thinking...", "diana loading");
-        const chatUrl = "https://integrate.api.nvidia.com/v1/chat/completions";
+        
+        // Routed via corsproxy.io to fix browser CORS block
+        const targetUrl = "https://integrate.api.nvidia.com/v1/chat/completions";
+        const chatUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
 
         try {
             const response = await fetch(chatUrl, {
@@ -366,7 +368,9 @@ Always speak with a loving, warm, loyal, and engaging tone.`
     async function handleImageGeneration(promptText) {
         const loadingMsg = appendMessage("⚡ Initializing GPU cluster... Creating artwork for you...", "diana loading");
 
-        const imageUrl = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev";
+        // Routed via corsproxy.io to fix browser CORS block
+        const targetImageUrl = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev";
+        const imageUrl = `https://corsproxy.io/?${encodeURIComponent(targetImageUrl)}`;
 
         try {
             const response = await fetch(imageUrl, {
