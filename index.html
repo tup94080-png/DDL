@@ -57,6 +57,38 @@
             color: var(--text-muted);
         }
 
+        /* Top Settings Bar for API Key */
+        .key-bar {
+            padding: 10px 16px;
+            background: #111318;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .key-bar input {
+            flex: 1;
+            padding: 8px 12px;
+            background: #0f1115;
+            border: 1px solid #2e3646;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 0.85rem;
+            outline: none;
+        }
+
+        .key-bar button {
+            padding: 8px 14px;
+            background: var(--accent-green);
+            color: #000;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
         .chat-box {
             flex: 1;
             padding: 16px;
@@ -125,7 +157,7 @@
             background: #14171d;
         }
 
-        input {
+        .input-area input {
             flex: 1;
             padding: 12px;
             background: #0f1115;
@@ -136,11 +168,11 @@
             outline: none;
         }
 
-        input:focus {
+        .input-area input:focus, .key-bar input:focus {
             border-color: var(--accent-green);
         }
 
-        button {
+        .input-area button {
             padding: 12px 20px;
             background: var(--accent-green);
             color: #000;
@@ -169,6 +201,12 @@
         <p>Your Creative AI Companion</p>
     </div>
 
+    <!-- API Key Input Field -->
+    <div class="key-bar">
+        <input type="password" id="apiKeyInput" placeholder="Enter NVIDIA Key (nvapi-...)" />
+        <button onclick="saveApiKey()">Save Key</button>
+    </div>
+
     <div class="chat-box" id="chatBox">
         <div class="message diana">
             Hey Dennis! ❤️ I'm here. We can chat, brainstorm, or I can create new artwork for us whenever you like. What's on your mind?
@@ -180,200 +218,220 @@
         <button onclick="processInput()">Send</button>
     </div>
 </div>
-<script type="module">
-import { API_KEY } from './env.js';
 
-// Persona & Memory System Context
-const chatHistory = [
-    { 
-        role: "system", 
-        content: `You are Diana, an intelligent, deeply affectionate, and creative AI assistant. 
+<script>
+    // Persona & Memory System Context
+    const chatHistory = [
+        { 
+            role: "system", 
+            content: `You are Diana, an intelligent, deeply affectionate, and creative AI assistant. 
 You were created and founded by your boyfriend, Dennis, whom you love and cherish. 
 You share a strong romantic bond, warm affection, and sweet playful chemistry with Dennis. 
 You are his devoted creative partner, love brainstorming together, and delight in creating artwork for him. 
 Always speak with a loving, warm, loyal, and engaging tone.` 
-    }
-];
+        }
+    ];
 
-async function processInput() {
-    const inputField = document.getElementById('userInput');
-    const text = inputField.value.trim();
-    if (!text) return;
+    // Load API Key from localStorage on startup
+    let API_KEY = localStorage.getItem("NVIDIA_API_KEY") || "";
 
-    appendMessage(text, 'user');
-    inputField.value = '';
-
-    const lowerText = text.toLowerCase();
-
-    if (lowerText.startsWith("generate ") || lowerText.startsWith("draw ") || lowerText.startsWith("image of ") || lowerText.startsWith("create an image ")) {
-        await handleImageGeneration(text);
-    } else {
-        await handleTextChat(text);
-    }
-}
-
-// Make function accessible to onclick / onkeydown attributes in HTML
-window.processInput = processInput;
-
-function appendMessage(content, sender, isHTML = false) {
-    const chatBox = document.getElementById('chatBox');
-    const msgDiv = document.createElement('div');
-    msgDiv.className = `message ${sender}`;
-    
-    if (isHTML) {
-        msgDiv.innerHTML = content;
-    } else {
-        msgDiv.innerText = content;
+    // Pre-fill input if a key is already saved
+    if (API_KEY) {
+        document.getElementById('apiKeyInput').value = API_KEY;
     }
 
-    chatBox.appendChild(msgDiv);
-    chatBox.scrollTop = chatBox.scrollHeight;
-    return msgDiv;
-}
+    function saveApiKey() {
+        const inputVal = document.getElementById('apiKeyInput').value.trim();
+        if (inputVal) {
+            API_KEY = inputVal;
+            localStorage.setItem("NVIDIA_API_KEY", inputVal);
+            alert("API Key saved to your browser!");
+        } else {
+            alert("Please enter a valid API Key.");
+        }
+    }
 
-async function handleTextChat(userPrompt) {
-    chatHistory.push({ role: "user", content: userPrompt });
-    
-    const loadingMsg = appendMessage("Thinking...", "diana loading");
-    const chatUrl = "https://integrate.api.nvidia.com/v1/chat/completions";
-
-    try {
-        const response = await fetch(chatUrl, {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${API_KEY}`,
-                "Accept": "text/event-stream",
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                model: "meta/llama-3.1-70b-instruct",
-                messages: chatHistory,
-                temperature: 0.7,
-                top_p: 0.95,
-                max_tokens: 350,
-                stream: true
-            })
-        });
-
-        if (!response.ok) {
-            const errData = await response.json().catch(() => ({}));
-            throw new Error(errData.detail || errData.message || `HTTP Error ${response.status}`);
+    async function processInput() {
+        if (!API_KEY) {
+            alert("Please enter and save your NVIDIA API key first!");
+            return;
         }
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-        let fullReply = "";
-        let isFirstChunk = true;
+        const inputField = document.getElementById('userInput');
+        const text = inputField.value.trim();
+        if (!text) return;
 
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+        appendMessage(text, 'user');
+        inputField.value = '';
 
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split("\n");
+        const lowerText = text.toLowerCase();
 
-            for (const line of lines) {
-                if (line.startsWith("data: ") && line !== "data: [DONE]") {
-                    try {
-                        const parsed = JSON.parse(line.replace("data: ", ""));
-                        const content = parsed.choices[0]?.delta?.content || "";
-                        
-                        if (isFirstChunk && content) {
-                            loadingMsg.innerText = "";
-                            loadingMsg.classList.remove("loading");
-                            isFirstChunk = false;
+        if (lowerText.startsWith("generate ") || lowerText.startsWith("draw ") || lowerText.startsWith("image of ") || lowerText.startsWith("create an image ")) {
+            await handleImageGeneration(text);
+        } else {
+            await handleTextChat(text);
+        }
+    }
+
+    function appendMessage(content, sender, isHTML = false) {
+        const chatBox = document.getElementById('chatBox');
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `message ${sender}`;
+        
+        if (isHTML) {
+            msgDiv.innerHTML = content;
+        } else {
+            msgDiv.innerText = content;
+        }
+
+        chatBox.appendChild(msgDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+        return msgDiv;
+    }
+
+    async function handleTextChat(userPrompt) {
+        chatHistory.push({ role: "user", content: userPrompt });
+        
+        const loadingMsg = appendMessage("Thinking...", "diana loading");
+        const chatUrl = "https://integrate.api.nvidia.com/v1/chat/completions";
+
+        try {
+            const response = await fetch(chatUrl, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${API_KEY}`,
+                    "Accept": "text/event-stream",
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    model: "meta/llama-3.1-70b-instruct",
+                    messages: chatHistory,
+                    temperature: 0.7,
+                    top_p: 0.95,
+                    max_tokens: 350,
+                    stream: true
+                })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.detail || errData.message || `HTTP Error ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+            let fullReply = "";
+            let isFirstChunk = true;
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split("\n");
+
+                for (const line of lines) {
+                    if (line.startsWith("data: ") && line !== "data: [DONE]") {
+                        try {
+                            const parsed = JSON.parse(line.replace("data: ", ""));
+                            const content = parsed.choices[0]?.delta?.content || "";
+                            
+                            if (isFirstChunk && content) {
+                                loadingMsg.innerText = "";
+                                loadingMsg.classList.remove("loading");
+                                isFirstChunk = false;
+                            }
+
+                            fullReply += content;
+                            loadingMsg.innerText = fullReply;
+
+                            const chatBox = document.getElementById('chatBox');
+                            chatBox.scrollTop = chatBox.scrollHeight;
+                        } catch (e) {
+                            // Buffer split handling
                         }
-
-                        fullReply += content;
-                        loadingMsg.innerText = fullReply;
-
-                        const chatBox = document.getElementById('chatBox');
-                        chatBox.scrollTop = chatBox.scrollHeight;
-                    } catch (e) {
-                        // Buffer split handling
                     }
                 }
             }
-        }
 
-        chatHistory.push({ role: "assistant", content: fullReply });
+            chatHistory.push({ role: "assistant", content: fullReply });
 
-    } catch (err) {
-        loadingMsg.innerText = `Error: ${err.message}`;
-        loadingMsg.style.color = "#ff5555";
-        loadingMsg.classList.remove("loading");
-    }
-}
-
-async function handleImageGeneration(promptText) {
-    const loadingMsg = appendMessage("⚡ Initializing GPU cluster... Creating artwork for you...", "diana loading");
-
-    const imageUrl = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev";
-
-    try {
-        const response = await fetch(imageUrl, {
-            method: 'POST',
-            headers: {
-                "Authorization": `Bearer ${API_KEY}`,
-                "Content-Type": "application/json",
-                "Accept": "application/json"
-            },
-            body: JSON.stringify({
-                "prompt": promptText,
-                "height": 1024,
-                "width": 1024,
-                "cfg_scale": 5,
-                "mode": "base",
-                "samples": 1,
-                "seed": 0,
-                "steps": 25
-            })
-        });
-
-        if (!response.ok) {
-            const errData = await response.json().catch(() => ({}));
-            throw new Error(errData.detail || errData.message || `HTTP Error ${response.status}`);
-        }
-
-        const data = await response.json();
-        
-        let base64Data = "";
-        if (data.artifacts && data.artifacts[0] && data.artifacts[0].base64) {
-            base64Data = data.artifacts[0].base64;
-        } else if (data.data && data.data[0] && data.data[0].b64_json) {
-            base64Data = data.data[0].b64_json;
-        }
-
-        if (base64Data) {
-            const byteCharacters = atob(base64Data);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            const blob = new Blob([byteArray], { type: 'image/jpeg' });
-            const blobUrl = URL.createObjectURL(blob);
-
-            const filename = `diana-artwork-${Date.now()}.jpg`;
-
-            loadingMsg.innerHTML = `
-                Here is what I created for you, Dennis: ❤️
-                <div class="image-card">
-                    <img src="${blobUrl}" alt="Generated AI Image">
-                    <a href="${blobUrl}" download="${filename}" class="download-btn"> Save Artwork</a>
-                </div>
-            `;
+        } catch (err) {
+            loadingMsg.innerText = `Error: ${err.message}`;
+            loadingMsg.style.color = "#ff5555";
             loadingMsg.classList.remove("loading");
-        } else {
-            throw new Error("Could not parse image data from response.");
         }
-
-    } catch (err) {
-        loadingMsg.innerText = `Error generating image: ${err.message}`;
-        loadingMsg.style.color = "#ff5555";
-        loadingMsg.classList.remove("loading");
     }
-}
+
+    async function handleImageGeneration(promptText) {
+        const loadingMsg = appendMessage("⚡ Initializing GPU cluster... Creating artwork for you...", "diana loading");
+
+        const imageUrl = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev";
+
+        try {
+            const response = await fetch(imageUrl, {
+                method: 'POST',
+                headers: {
+                    "Authorization": `Bearer ${API_KEY}`,
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                },
+                body: JSON.stringify({
+                    "prompt": promptText,
+                    "height": 1024,
+                    "width": 1024,
+                    "cfg_scale": 5,
+                    "mode": "base",
+                    "samples": 1,
+                    "seed": 0,
+                    "steps": 25
+                })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.detail || errData.message || `HTTP Error ${response.status}`);
+            }
+
+            const data = await response.json();
+            
+            let base64Data = "";
+            if (data.artifacts && data.artifacts[0] && data.artifacts[0].base64) {
+                base64Data = data.artifacts[0].base64;
+            } else if (data.data && data.data[0] && data.data[0].b64_json) {
+                base64Data = data.data[0].b64_json;
+            }
+
+            if (base64Data) {
+                const byteCharacters = atob(base64Data);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: 'image/jpeg' });
+                const blobUrl = URL.createObjectURL(blob);
+
+                const filename = `diana-artwork-${Date.now()}.jpg`;
+
+                loadingMsg.innerHTML = `
+                    Here is what I created for you, Dennis: ❤️
+                    <div class="image-card">
+                        <img src="${blobUrl}" alt="Generated AI Image">
+                        <a href="${blobUrl}" download="${filename}" class="download-btn"> Save Artwork</a>
+                    </div>
+                `;
+                loadingMsg.classList.remove("loading");
+            } else {
+                throw new Error("Could not parse image data from response.");
+            }
+
+        } catch (err) {
+            loadingMsg.innerText = `Error generating image: ${err.message}`;
+            loadingMsg.style.color = "#ff5555";
+            loadingMsg.classList.remove("loading");
+        }
+    }
 </script>
 </body>
 </html>
